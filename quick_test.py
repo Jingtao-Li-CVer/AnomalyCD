@@ -15,30 +15,29 @@ from segment_anything_origin import SamAutomaticMaskGenerator, sam_model_registr
 import config
 from stage1_analysis import analyze_bitemporal_patch
 from stage2_analysis import analyze_anomaly_change_patch
+from utils import resolve_event_paths
 
 
 def main() -> None:
     device = config.DEFAULT_DEVICE
-    event_dir = os.path.join(
-        config.DEFAULT_DATA_ROOT, "1_赤道几内亚爆炸-20210313_30"
+    event_name = "1_赤道几内亚爆炸-20210313_30"
+    event_dir = os.path.join(config.DEFAULT_DATA_ROOT, event_name)
+    monitor_path, _, reference_path, historical_paths = resolve_event_paths(
+        event_dir, event_name
     )
-    term_names = sorted(os.listdir(event_dir))
-    anomaly_path = os.path.join(event_dir, term_names[0])
-    normal_path = os.path.join(event_dir, term_names[-1])
-    normal_paths = [os.path.join(event_dir, name) for name in term_names[2:]]
 
     print("Loading SAM...")
     sam = sam_model_registry[config.SAM_MODEL_TYPE](checkpoint=config.SAM_CHECKPOINT).to(device)
     stage1_generator = SamAutomaticMaskGenerator(sam, **config.STAGE1_SAM_PARAMS)
 
     patch_size = 1024
-    normal_image = read_img(normal_path).astype(np.uint8)
-    anomaly_image = read_img(anomaly_path).astype(np.uint8)
-    normal_patch = normal_image[:patch_size, :patch_size].copy()
-    anomaly_patch = anomaly_image[:patch_size, :patch_size].copy()
+    reference_image = read_img(reference_path).astype(np.uint8)
+    monitor_image = read_img(monitor_path).astype(np.uint8)
+    reference_patch = reference_image[:patch_size, :patch_size].copy()
+    monitor_patch = monitor_image[:patch_size, :patch_size].copy()
 
     print("Stage1 patch inference...")
-    change_patch = analyze_bitemporal_patch(stage1_generator, normal_patch, anomaly_patch)
+    change_patch = analyze_bitemporal_patch(stage1_generator, reference_patch, monitor_patch)
     print(
         "Stage1 output:",
         change_patch.shape,
@@ -52,8 +51,8 @@ def main() -> None:
         ),
         **config.STAGE2_SAM_PARAMS,
     )
-    temporal_images = [read_img(path).astype(np.uint8) for path in normal_paths] + [
-        anomaly_image
+    temporal_images = [read_img(path).astype(np.uint8) for path in historical_paths] + [
+        monitor_image
     ]
     temporal_patches = [image[:patch_size, :patch_size].copy() for image in temporal_images]
     filtered_change_patch = change_patch.copy()

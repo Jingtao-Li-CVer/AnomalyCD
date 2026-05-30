@@ -62,7 +62,9 @@ Event folder names are prefixed with the category ID (e.g., `0_` for normal, `1_
 
 ### Directory Layout
 
-After downloading and extracting the dataset, each event is stored in its own folder with multi-temporal GeoTIFF files sorted by filename:
+After downloading and extracting the dataset, each event is stored in its own folder with multi-temporal GeoTIFF files sorted by filename.
+
+**Anomaly event example:**
 
 ```
 data/
@@ -74,6 +76,19 @@ data/
     └── normal_20170913.tif           # latest normal image  (term_names[-1])
 ```
 
+**Normal control event example (ID 0):**
+
+```
+data/
+└── 0_Egypt_30/
+    ├── normal_20180622.tif
+    ├── normal_20181222.tif
+    ├── normal_20190622.tif
+    └── normal_20201222.tif           # latest image (term_names[-1])
+```
+
+Normal events contain only `normal_*` images. Stage 1 compares the last two temporal images; Stage 2 uses the full time series.
+
 ### File Naming Convention
 
 | Prefix | Meaning |
@@ -81,8 +96,10 @@ data/
 | `anomaly_*` | Anomaly-time remote sensing image |
 | `*_label*` | Pixel-wise annotation raster |
 | `normal_*` | Historical normal-time images |
-| Event folder prefix `0_` | Normal control event (category ID 0) |
+| Event folder prefix `0_` | Normal control event (category ID 0, no label file) |
 | Event folder prefix `1`–`6` | Anomaly event category (see table above) |
+
+> **Inference vs. evaluation:** Stage 1 and Stage 2 process **both** anomaly and normal events. Only `run_eval.py` skips normal control events (`0_`), because they have no binary anomaly labels for recall / precision / F1.
 
 ### Annotation Format
 
@@ -353,7 +370,7 @@ The evaluation follows the protocol in the original `Eval/compare_tpr_recall_F1_
 3. **Recall (TPR)**: fraction of anomaly pixels correctly detected
 4. **Precision**: weighted precision with background false positives down-weighted by 0.1
 5. **F1**: harmonic mean of recall and precision
-6. Normal control events (`0_` prefix) are skipped
+6. Normal control events (`0_` prefix) are skipped during evaluation only
 
 ---
 

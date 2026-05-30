@@ -19,35 +19,61 @@ def list_event_dirs(data_root: str) -> list[str]:
     return event_names
 
 
-def resolve_event_paths(event_dir: str) -> tuple[str, str, str, list[str]]:
+def is_normal_control_event(event_name: str) -> bool:
+    """Return True for normal control events (category ID 0)."""
+    return event_name.startswith("0_")
+
+
+def is_evaluable_anomaly_event(event_name: str) -> bool:
+    """Return True for anomaly events included in quantitative evaluation."""
+    return not is_normal_control_event(event_name)
+
+
+def resolve_event_paths(
+    event_dir: str, event_name: str
+) -> tuple[str, Optional[str], str, list[str]]:
     """
     Resolve image paths for one event directory.
 
-    Expected layout (sorted filenames):
+    Returns:
+      monitor_path: Stage-1 after image and Stage-2 last temporal image
+      label_path: annotation path for anomaly events, None for normal events
+      reference_path: Stage-1 before image
+      historical_paths: earlier temporal images used by Stage 2
+
+    Anomaly event layout (sorted filenames):
       term_names[0]  -> anomaly image
       term_names[1]  -> label
       term_names[2:] -> normal temporal images
+
+    Normal control event layout:
+      all files are normal temporal images; the last two are used in Stage 1
     """
-    term_names = os.listdir(event_dir)
-    term_names.sort()
+    term_names = sorted(os.listdir(event_dir))
+    term_paths = [os.path.join(event_dir, term_name) for term_name in term_names]
 
-    anomaly_path = os.path.join(event_dir, term_names[0])
-    label_path = os.path.join(event_dir, term_names[1])
-    normal_paths = [
-        os.path.join(event_dir, term_name)
-        for term_name in term_names[2:]
-    ]
-    latest_normal_path = os.path.join(event_dir, term_names[-1])
+    if is_normal_control_event(event_name):
+        if len(term_paths) < 2:
+            raise ValueError(
+                f"Normal event {event_name} requires at least 2 temporal images."
+            )
+        return (
+            term_paths[-1],
+            None,
+            term_paths[-2],
+            term_paths[:-1],
+        )
 
-    return anomaly_path, label_path, latest_normal_path, normal_paths
+    if len(term_paths) < 3:
+        raise ValueError(
+            f"Anomaly event {event_name} requires anomaly, label, and normal images."
+        )
 
-
-def validate_event_paths(anomaly_path: str, normal_path: str, label_path: str) -> bool:
-    """Return True when filenames match the expected naming convention."""
     return (
-        "anomaly" in os.path.basename(anomaly_path)
-        and "normal" in os.path.basename(normal_path)
-        and "label" in os.path.basename(label_path)
+        term_paths[0],
+        term_paths[1],
+        term_paths[-1],
+        term_paths[2:],
     )
 
 

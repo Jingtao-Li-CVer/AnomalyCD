@@ -21,12 +21,16 @@ from eval_metrics import (
     calculate_f1,
     calculate_tpr,
     calculate_weighted_precision,
-    extract_event_category_id,
     normalize_map,
     threshold_prediction_map,
     threshold_prediction_map_by_value,
 )
-from utils import binarize_label, list_event_dirs, resolve_event_paths
+from utils import (
+    binarize_label,
+    is_evaluable_anomaly_event,
+    list_event_dirs,
+    resolve_event_paths,
+)
 
 
 def find_prediction_files(result_dir: str) -> Tuple[str, str]:
@@ -52,13 +56,14 @@ def evaluate_event(
     background_weight: float,
     normalize_anomaly_map: bool,
 ) -> Optional[dict]:
-    """Evaluate one event and return stage-1 / stage-2 metrics."""
-    category_id = extract_event_category_id(event_name)
-    if category_id is None or category_id <= 0:
+    """Evaluate one anomaly event and return stage-1 / stage-2 metrics."""
+    if not is_evaluable_anomaly_event(event_name):
         return None
 
     event_dir = os.path.join(data_root, event_name)
-    _, label_path, _, _ = resolve_event_paths(event_dir)
+    _, label_path, _, _ = resolve_event_paths(event_dir, event_name)
+    if label_path is None:
+        return None
     result_dir = os.path.join(result_root, event_name)
 
     if not os.path.isdir(result_dir):

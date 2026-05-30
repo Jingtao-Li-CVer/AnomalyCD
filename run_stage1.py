@@ -23,7 +23,6 @@ from utils import (
     iter_patch_offsets,
     list_event_dirs,
     resolve_event_paths,
-    validate_event_paths,
 )
 
 
@@ -45,10 +44,10 @@ def process_event(
 ) -> None:
     """Run stage-1 change detection for one event."""
     event_dir = os.path.join(data_root, event_name)
-    anomaly_path, label_path, normal_path, _ = resolve_event_paths(event_dir)
-
-    if not validate_event_paths(anomaly_path, normal_path, label_path):
-        print(f"[Stage1] Skip invalid event: {event_name}")
+    try:
+        monitor_path, _, reference_path, _ = resolve_event_paths(event_dir, event_name)
+    except ValueError as error:
+        print(f"[Stage1] Skip {event_name}: {error}")
         return
 
     save_dir = os.path.join(output_root, event_name)
@@ -60,21 +59,21 @@ def process_event(
 
     print(f"[Stage1] Processing {event_name}")
 
-    normal_image = read_img(normal_path).astype(np.uint8)
-    anomaly_image = read_img(anomaly_path).astype(np.uint8)
+    reference_image = read_img(reference_path).astype(np.uint8)
+    monitor_image = read_img(monitor_path).astype(np.uint8)
 
-    height, width, _ = normal_image.shape
+    height, width, _ = reference_image.shape
     change_map = np.zeros((height, width))
 
     for row, col in tqdm(
         list(iter_patch_offsets(height, width, patch_size)),
         desc=f"Stage1 patches ({event_name})",
     ):
-        normal_patch = normal_image[row:row + patch_size, col:col + patch_size].copy()
-        anomaly_patch = anomaly_image[row:row + patch_size, col:col + patch_size].copy()
+        reference_patch = reference_image[row:row + patch_size, col:col + patch_size].copy()
+        monitor_patch = monitor_image[row:row + patch_size, col:col + patch_size].copy()
 
         patch_change_map = analyze_bitemporal_patch(
-            mask_generator, normal_patch, anomaly_patch
+            mask_generator, reference_patch, monitor_patch
         )
         change_map[row:row + patch_size, col:col + patch_size] = patch_change_map
 

@@ -60,7 +60,11 @@ def process_event(
 ) -> None:
     """Run stage-2 anomaly change detection for one event."""
     event_dir = os.path.join(data_root, event_name)
-    anomaly_path, _, _, normal_paths = resolve_event_paths(event_dir)
+    try:
+        monitor_path, _, _, historical_paths = resolve_event_paths(event_dir, event_name)
+    except ValueError as error:
+        print(f"[Stage2] Skip {event_name}: {error}")
+        return
 
     save_dir = os.path.join(output_root, event_name)
     os.makedirs(save_dir, exist_ok=True)
@@ -73,7 +77,7 @@ def process_event(
 
     print(f"[Stage2] Processing {event_name}")
 
-    temporal_paths = normal_paths + [anomaly_path]
+    temporal_paths = historical_paths + [monitor_path]
     temporal_images = [read_img(path) for path in temporal_paths]
     height, width, _ = temporal_images[-1].shape
     patch_size = get_patch_size(height, width)
