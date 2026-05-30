@@ -65,6 +65,35 @@ def threshold_prediction_map(
     return remove_small_regions(binary_map.astype(np.uint8), min_region_area)
 
 
+def threshold_prediction_map_by_value(
+    prediction_map: np.ndarray,
+    fixed_threshold: float = 0.08,
+    area_ratio: float = 0.0003,
+    apply_morphology: bool = False,
+) -> np.ndarray:
+    """
+    Binarize a continuous prediction map using a fixed threshold.
+
+    When apply_morphology is True, perform closing and small-region removal
+    after thresholding, following the original evaluation protocol.
+    """
+    binary_map = prediction_map.copy()
+    binary_map[binary_map >= fixed_threshold] = 1
+    binary_map[binary_map < fixed_threshold] = 0
+
+    if not apply_morphology:
+        return binary_map
+
+    min_region_area = int(binary_map.shape[0] * binary_map.shape[1] * area_ratio)
+    binary_map = binary_map.astype(bool)
+    original_shape = binary_map.shape
+
+    binary_map = skimage.transform.resize(binary_map, (512, 512))
+    binary_map = morphology.binary_closing(binary_map, morphology.disk(3))
+    binary_map = skimage.transform.resize(binary_map, original_shape)
+    return remove_small_regions(binary_map.astype(np.uint8), min_region_area)
+
+
 def normalize_map(prediction_map: np.ndarray) -> np.ndarray:
     """Min-max normalize a prediction map to [0, 1]."""
     value_range = prediction_map.max() - prediction_map.min()

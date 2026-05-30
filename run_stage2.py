@@ -18,8 +18,6 @@ from segment_anything_origin import SamAutomaticMaskGenerator, sam_model_registr
 import config
 from stage2_analysis import analyze_anomaly_change_patch
 from utils import (
-    binarize_label,
-    calculate_auc,
     get_patch_size,
     iter_patch_offsets,
     list_event_dirs,
@@ -62,7 +60,7 @@ def process_event(
 ) -> None:
     """Run stage-2 anomaly change detection for one event."""
     event_dir = os.path.join(data_root, event_name)
-    anomaly_path, label_path, _, normal_paths = resolve_event_paths(event_dir)
+    anomaly_path, _, _, normal_paths = resolve_event_paths(event_dir)
 
     save_dir = os.path.join(output_root, event_name)
     os.makedirs(save_dir, exist_ok=True)
@@ -102,27 +100,9 @@ def process_event(
         )
         anomaly_change_map[row:row + patch_size, col:col + patch_size] = patch_anomaly_map
 
-    if event_name.startswith("0_"):
-        write_img(change_map, os.path.join(save_dir, "change_map_filtered.tif"))
-        write_img(anomaly_change_map, os.path.join(save_dir, "AnomalyCD_map.tif"))
-        print(f"[Stage2] Saved normal-event outputs for {event_name}")
-        return
-
-    ground_truth = binarize_label(read_img(label_path))
-
-    change_map_auc = calculate_auc(change_map, ground_truth)
-    anomaly_map_auc = calculate_auc(anomaly_change_map, ground_truth)
-    print(f"[Stage2] Change-map AUC: {change_map_auc:.6f}")
-    print(f"[Stage2] AnomalyCD AUC: {anomaly_map_auc:.6f}")
-
-    write_img(
-        change_map,
-        os.path.join(save_dir, f"change_map_filtered_{change_map_auc:.6f}.tif"),
-    )
-    write_img(
-        anomaly_change_map,
-        os.path.join(save_dir, f"AnomalyCD_map_{anomaly_map_auc:.6f}.tif"),
-    )
+    write_img(change_map, os.path.join(save_dir, "change_map_filtered.tif"))
+    write_img(anomaly_change_map, os.path.join(save_dir, "AnomalyCD_map.tif"))
+    print(f"[Stage2] Finished {event_name}")
 
 
 def parse_args() -> argparse.Namespace:

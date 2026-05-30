@@ -1,0 +1,15 @@
+# Tested with Python 3.7 in the RSAD conda environment.
+# Install PyTorch with CUDA support from https://pytorch.org if needed:
+#   pip install torch==1.13.0 torchvision==0.14.0 --extra-index-url https://download.pytorch.org/whl/cu117
+#
+# GDAL is often easier to install via conda:
+#   conda install -c conda-forge gdal=3.0.2
+
+numpy==1.21.6
+torch==1.13.0
+torchvision==0.14.0
+opencv-python==4.8.0.76
+scikit-learn==1.0.2
+scikit-image==0.19.2
+tqdm==4.65.2
+GDAL==3.0.2

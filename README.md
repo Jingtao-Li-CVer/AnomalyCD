@@ -14,7 +14,7 @@ AnomalyCD follows a two-stage pipeline:
 |-------|--------|-------------|
 | **Stage 1** | `run_stage1.py` | Detect pixel-level changes between the latest normal image and the anomaly image |
 | **Stage 2** | `run_stage2.py` | Identify anomalous changes using all normal temporal images and Stage 1 outputs |
-| **Evaluation** | `run_eval.py` | Compute TPR, weighted precision, and F1 on Stage 2 results |
+| **Evaluation** | `run_eval.py` | Per-event recall, precision, and F1 for Stage 1 and Stage 2 |
 
 ![AnomalyCD framework](docs/images/framework.png)
 
@@ -44,10 +44,11 @@ Submit your name, organization, and email to receive download instructions.
 
 ### Global Coverage
 
-The dataset covers anomaly events across six major categories worldwide:
+The dataset covers normal control sites and anomaly events across six major categories worldwide:
 
 | ID | Category | Color in map |
 |----|----------|--------------|
+| 0 | Normal | Black |
 | 1 | Explosion | Red |
 | 2 | Collapse | Orange |
 | 3 | Landslide | Green |
@@ -55,7 +56,7 @@ The dataset covers anomaly events across six major categories worldwide:
 | 5 | Dam break | Light blue |
 | 6 | Others | Grey |
 
-Normal control sites (prefix `0_`) are also included for reference.
+Event folder names are prefixed with the category ID (e.g., `0_` for normal, `1_` for explosion).
 
 ![GDL dataset global distribution](docs/images/dataset_distribution.png)
 
@@ -80,8 +81,8 @@ data/
 | `anomaly_*` | Anomaly-time remote sensing image |
 | `*_label*` | Pixel-wise annotation raster |
 | `normal_*` | Historical normal-time images |
+| Event folder prefix `0_` | Normal control event (category ID 0) |
 | Event folder prefix `1`–`6` | Anomaly event category (see table above) |
-| Event folder prefix `0_` | Normal control event (no anomaly evaluation) |
 
 ### Annotation Format
 
@@ -92,30 +93,47 @@ The label raster is **not a binary map**. Each pixel value encodes a semantic ca
 
 Multiple anomaly instances or land-cover types in the same event may therefore carry different label IDs in a single annotation file.
 
-> **Note on evaluation:** For AUC computation during inference and for TPR / precision / F1 evaluation, the code converts labels to a binary anomaly mask via `binarize_label()` (value `1` is treated as background; all other positive values are merged into the anomaly class). This follows the original evaluation protocol and does **not** change the multi-class nature of the raw annotations.
+> **Note on evaluation:** For TPR / precision / F1 evaluation, the code converts labels to a binary anomaly mask via `binarize_label()` (value `1` is treated as background; all other positive values are merged into the anomaly class). This follows the original evaluation protocol and does **not** change the multi-class nature of the raw annotations.
 
 ---
 
 ## Environment Setup
 
-### 1. Conda Environment
+### 1. Install Dependencies
 
-We recommend the **RSAD** environment:
+Create a Python 3.7+ environment and install the required packages:
+
+```bash
+cd AnomalyCD
+pip install -r requirements.txt
+```
+
+Or activate the pre-configured **RSAD** conda environment:
 
 ```bash
 conda activate RSAD
+pip install -r requirements.txt
 ```
 
-Required packages include:
+Core dependencies:
 
-- Python 3.7+
-- PyTorch (CUDA)
-- GDAL / osgeo
-- OpenCV (`cv2`)
-- scikit-learn
-- scikit-image
-- numpy
-- tqdm
+| Package | Version (tested) | Purpose |
+|---------|------------------|---------|
+| `numpy` | 1.21.6 | Array operations |
+| `torch` / `torchvision` | 1.13.0 / 0.14.0 | SAM inference (CUDA) |
+| `opencv-python` | 4.8.0.76 | Image processing |
+| `scikit-learn` | 1.0.2 | Evaluation metrics |
+| `scikit-image` | 0.19.2 | Morphological post-processing |
+| `GDAL` | 3.0.2 | GeoTIFF read/write |
+| `tqdm` | 4.65.2 | Progress bars |
+
+> **Note:** PyTorch with CUDA and GDAL are recommended to install via conda when `pip install` fails:
+>
+> ```bash
+> conda install pytorch==1.13.0 torchvision==0.14.0 pytorch-cuda=11.7 -c pytorch -c nvidia
+> conda install -c conda-forge gdal=3.0.2
+> pip install -r requirements.txt
+> ```
 
 ### 2. SAM Checkpoint
 
@@ -152,7 +170,8 @@ AnomalyCD/
 ├── run_stage2.py               # Stage 2 entry point
 ├── run.py                      # full pipeline entry point
 ├── run_eval.py                 # evaluation entry point
-├── smoke_test.py               # single-patch sanity check
+├── quick_test.py               # single-patch quick test
+├── requirements.txt            # Python dependencies
 └── docs/
     └── images/
         ├── framework.png
@@ -168,15 +187,15 @@ cd AnomalyCD
 conda activate RSAD
 ```
 
-### 1. Sanity Check (~30–40 seconds)
+### 1. Quick Test (~30–40 seconds)
 
 Verify SAM weights, CUDA, and data paths before full inference:
 
 ```bash
-python smoke_test.py
+python quick_test.py
 ```
 
-Expected output: `SMOKE TEST PASSED`.
+Expected output: `QUICK TEST PASSED`.
 
 ### 2. Full Pipeline
 
@@ -213,19 +232,24 @@ python run_stage2.py --device cuda:0 --event "1_Equatorial_Guinea_Explosion-2021
 
 ### 4. Evaluation
 
-After Stage 2 finishes, compute TPR, weighted precision, and F1:
+After Stage 2 finishes, run the official evaluation:
 
 ```bash
 python run_eval.py
 ```
 
+Each event prints **Stage 1** and **Stage 2** recall, precision, and F1:
+
+```
+1_xxx_event_name
+  Stage1  recall=0.8500  precision=0.7200  F1=0.7800
+  Stage2  recall=0.9100  precision=0.8000  F1=0.8520
+```
+
 Save per-event records to CSV:
 
 ```bash
-python run_eval.py \
-  --result-root /path/to/stage2_anomaly_change \
-  --quantile-threshold 0.945 \
-  --output-csv eval_records.csv
+python run_eval.py --output-csv eval_records.csv
 ```
 
 ---
@@ -261,10 +285,10 @@ python run_eval.py \
 | `--data-root` | `config.DEFAULT_DATA_ROOT` | Dataset root (for reading labels) |
 | `--result-root` | `config.STAGE2_OUTPUT_DIR` | Stage 2 result directory |
 | `--max-events` | `80` | Maximum number of events to evaluate |
-| `--quantile-threshold` | `0.945` | Quantile threshold for binarization |
+| `--quantile-threshold` | `0.945` | Quantile threshold for Stage 1 binarization |
+| `--stage2-threshold` | `0.08` | Fixed threshold for Stage 2 AnomalyCD binarization |
 | `--area-ratio` | `0.0003` | Minimum connected-component area ratio |
 | `--background-weight` | `0.1` | Background false-positive weight in precision |
-| `--num-categories` | `6` | Number of event categories in summary |
 | `--normalize-anomaly-map` | `False` | Apply min-max normalization before thresholding |
 | `--output-csv` | — | Save per-event evaluation records |
 
@@ -278,8 +302,8 @@ Directory: `{STAGE1_OUTPUT_DIR}/{event_name}/`
 
 | File | Description |
 |------|-------------|
-| `change_map_continuous_{AUC}.tif` | Continuous change map |
-| `change_map_binary_{AUC}.png` | Binarized preview (quantile 0.9) |
+| `change_map_continuous.tif` | Continuous change map |
+| `change_map_binary.png` | Binarized preview (quantile 0.9) |
 
 ### Stage 2
 
@@ -287,25 +311,15 @@ Directory: `{STAGE2_OUTPUT_DIR}/{event_name}/`
 
 | File | Description |
 |------|-------------|
-| `change_map_filtered_{AUC}.tif` | Filtered change map (quantile 0.7) |
-| `AnomalyCD_map_{AUC}.tif` | Final anomaly change detection map |
-
-For normal control events (prefix `0_`), output filenames omit the AUC suffix.
+| `change_map_filtered.tif` | Filtered change map (quantile 0.7) |
+| `AnomalyCD_map.tif` | Final anomaly change detection map |
 
 ### Evaluation
 
-The script prints category-wise summaries for anomaly events (prefixes 1–6):
+`run_eval.py` prints per-event metrics only:
 
-```
-Quantile threshold: 0.945
-Evaluated events: ...
-TPR (change map):       [...]
-TPR (AnomalyCD):        [...]
-Precision (change map): [...]
-Precision (AnomalyCD):  [...]
-F1 (change map):        [...]
-F1 (AnomalyCD):         [...]
-```
+- **Stage 1**: recall, precision, F1 on `change_map_filtered.tif`
+- **Stage 2**: recall, precision, F1 on `AnomalyCD_map.tif`
 
 ---
 
@@ -321,7 +335,8 @@ Key settings in `config.py`:
 | `STAGE2_CHANGE_MAP_QUANTILE` | 2 | 0.7 | Change-map filtering quantile |
 | `STAGE2_MIN_MASK_PIXELS` | 2 | 1500 | Minimum mask pixel count |
 | `STAGE2_SAM_PARAMS` | 2 | see config | SAM automatic mask generator settings |
-| `EVAL_QUANTILE_THRESH` | Eval | 0.945 | Evaluation binarization quantile |
+| `EVAL_QUANTILE_THRESH` | Eval | 0.945 | Stage 1 evaluation binarization quantile |
+| `EVAL_STAGE2_FIXED_THRESH` | Eval | 0.08 | Stage 2 AnomalyCD fixed binarization threshold |
 | `EVAL_AREA_RATIO` | Eval | 0.0003 | Small-region filtering area ratio |
 | `EVAL_BACKGROUND_WEIGHT` | Eval | 0.1 | Weighted precision background weight |
 
@@ -333,12 +348,12 @@ Stage 2 automatically selects the patch size: **1024** when the short side is be
 
 The evaluation follows the protocol in the original `Eval/compare_tpr_recall_F1_.py`:
 
-1. **Change map**: binarized by quantile threshold; no morphological post-processing
-2. **AnomalyCD map**: binarized by quantile threshold, then morphologically closed and filtered by small connected components
-3. **TPR (Recall)**: fraction of anomaly pixels correctly detected
-4. **Weighted Precision**: background false positives are down-weighted by 0.1
-5. **F1**: harmonic mean of TPR and precision
-6. Normal control events (`0_` prefix) are skipped; results are aggregated by event category (1–6)
+1. **Change map (Stage 1)**: binarized by quantile threshold (`0.945`); no morphological post-processing
+2. **AnomalyCD map (Stage 2)**: binarized by fixed threshold (`0.08`), then morphologically closed and filtered by small connected components
+3. **Recall (TPR)**: fraction of anomaly pixels correctly detected
+4. **Precision**: weighted precision with background false positives down-weighted by 0.1
+5. **F1**: harmonic mean of recall and precision
+6. Normal control events (`0_` prefix) are skipped
 
 ---
 
@@ -347,7 +362,7 @@ The evaluation follows the protocol in the original `Eval/compare_tpr_recall_F1_
 1. **GPU required** for Stage 1 and Stage 2 inference. `run_eval.py` runs on CPU only.
 2. **Execution order**: Stage 1 → Stage 2 → Evaluation.
 3. **Stage 1 skips existing outputs by default**. Use `--no-skip-existing` to force re-inference.
-4. **Runtime**: full inference on high-resolution images (e.g., 9840×13184) can take a long time. Use `smoke_test.py` first, then debug with `--event`.
+4. **Runtime**: full inference on high-resolution images (e.g., 9840×13184) can take a long time. Use `quick_test.py` first, then debug with `--event`.
 5. **Legacy code** remains in the parent repository:
    - Stage 1: `SAM_Change_Detection/run.py`
    - Stage 2: `SAM_Anomaly_Change/run.py`
@@ -365,7 +380,7 @@ cd AnomalyCD
 # 2. Edit data paths and SAM checkpoint in config.py
 
 # 3. Verify setup
-python smoke_test.py
+python quick_test.py
 
 # 4. Debug on a single event
 python run.py --stage all --device cuda:0 --event "1_Equatorial_Guinea_Explosion-20210313_30"

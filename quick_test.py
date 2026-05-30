@@ -1,4 +1,4 @@
-"""Quick smoke test for AnomalyCD on one image patch."""
+"""Quick test for AnomalyCD on one image patch."""
 
 import os
 import sys
@@ -18,8 +18,10 @@ from stage2_analysis import analyze_anomaly_change_patch
 
 
 def main() -> None:
-    device = "cuda:1"
-    event_dir = "/media/data2/ljt/全球地表异常数据集/data/1_赤道几内亚爆炸-20210313_30"
+    device = config.DEFAULT_DEVICE
+    event_dir = os.path.join(
+        config.DEFAULT_DATA_ROOT, "1_赤道几内亚爆炸-20210313_30"
+    )
     term_names = sorted(os.listdir(event_dir))
     anomaly_path = os.path.join(event_dir, term_names[0])
     normal_path = os.path.join(event_dir, term_names[-1])
@@ -56,7 +58,7 @@ def main() -> None:
     temporal_patches = [image[:patch_size, :patch_size].copy() for image in temporal_images]
     filtered_change_patch = change_patch.copy()
     filtered_change_patch[
-        filtered_change_patch < np.quantile(filtered_change_patch, 0.7)
+        filtered_change_patch < np.quantile(filtered_change_patch, config.STAGE2_CHANGE_MAP_QUANTILE)
     ] = 0
 
     print("Stage2 patch inference...")
@@ -69,7 +71,7 @@ def main() -> None:
         float(anomaly_patch_map.min()),
         float(anomaly_patch_map.max()),
     )
-    print("SMOKE TEST PASSED")
+    print("QUICK TEST PASSED")
 
 
 if __name__ == "__main__":

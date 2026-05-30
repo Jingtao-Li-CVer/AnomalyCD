@@ -19,8 +19,6 @@ from segment_anything_origin import SamAutomaticMaskGenerator, sam_model_registr
 import config
 from stage1_analysis import analyze_bitemporal_patch
 from utils import (
-    binarize_label,
-    calculate_auc,
     directory_has_files,
     iter_patch_offsets,
     list_event_dirs,
@@ -64,7 +62,6 @@ def process_event(
 
     normal_image = read_img(normal_path).astype(np.uint8)
     anomaly_image = read_img(anomaly_path).astype(np.uint8)
-    ground_truth = binarize_label(read_img(label_path))
 
     height, width, _ = normal_image.shape
     change_map = np.zeros((height, width))
@@ -81,22 +78,15 @@ def process_event(
         )
         change_map[row:row + patch_size, col:col + patch_size] = patch_change_map
 
-    continuous_auc = calculate_auc(change_map, ground_truth)
-    print(f"[Stage1] Continuous AUC: {continuous_auc:.6f}")
-
-    continuous_path = os.path.join(
-        save_dir, f"change_map_continuous_{continuous_auc:.6f}.tif"
-    )
-    write_img(change_map, continuous_path)
+    write_img(change_map, os.path.join(save_dir, "change_map_continuous.tif"))
 
     threshold = np.quantile(change_map, config.STAGE1_CHANGE_QUANTILE)
     binary_change_map = (change_map >= threshold).astype(np.float32)
-
-    binary_auc = calculate_auc(binary_change_map, ground_truth)
-    print(f"[Stage1] Binary AUC: {binary_auc:.6f}")
-
-    preview_path = os.path.join(save_dir, f"change_map_binary_{binary_auc:.6f}.png")
-    cv2.imwrite(preview_path, binary_change_map * 255)
+    cv2.imwrite(
+        os.path.join(save_dir, "change_map_binary.png"),
+        binary_change_map * 255,
+    )
+    print(f"[Stage1] Finished {event_name}")
 
 
 def parse_args() -> argparse.Namespace:
