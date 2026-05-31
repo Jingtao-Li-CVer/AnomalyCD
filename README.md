@@ -320,7 +320,6 @@ Directory: `{STAGE1_OUTPUT_DIR}/{event_name}/`
 | File | Description |
 |------|-------------|
 | `change_map_continuous.tif` | Continuous change map |
-| `change_map_binary.png` | Binarized preview (quantile 0.9) |
 
 ### Stage 2
 
@@ -329,7 +328,8 @@ Directory: `{STAGE2_OUTPUT_DIR}/{event_name}/`
 | File | Description |
 |------|-------------|
 | `change_map_filtered.tif` | Filtered change map (quantile 0.7) |
-| `AnomalyCD_map.tif` | Final anomaly change detection map |
+| `AnomalyCD_map.tif` | Continuous anomaly change detection map |
+| `AnomalyCD_map.png` | Binarized preview using evaluation settings (fixed threshold 0.08 + morphology) |
 
 ### Evaluation
 

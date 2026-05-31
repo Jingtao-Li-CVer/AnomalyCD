@@ -4,6 +4,7 @@ import argparse
 import os
 import sys
 
+import cv2
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -16,6 +17,7 @@ from img_io import read_img, write_img
 from segment_anything_origin import SamAutomaticMaskGenerator, sam_model_registry
 
 import config
+from eval_metrics import threshold_prediction_map_by_value
 from stage2_analysis import analyze_anomaly_change_patch
 from utils import (
     get_patch_size,
@@ -106,6 +108,17 @@ def process_event(
 
     write_img(change_map, os.path.join(save_dir, "change_map_filtered.tif"))
     write_img(anomaly_change_map, os.path.join(save_dir, "AnomalyCD_map.tif"))
+
+    anomaly_preview = threshold_prediction_map_by_value(
+        anomaly_change_map.copy(),
+        fixed_threshold=config.EVAL_STAGE2_FIXED_THRESH,
+        area_ratio=config.EVAL_AREA_RATIO,
+        apply_morphology=True,
+    )
+    cv2.imwrite(
+        os.path.join(save_dir, "AnomalyCD_map.png"),
+        anomaly_preview.astype(np.uint8) * 255,
+    )
     print(f"[Stage2] Finished {event_name}")
 
 

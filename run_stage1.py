@@ -4,7 +4,6 @@ import argparse
 import os
 import sys
 
-import cv2
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -78,13 +77,6 @@ def process_event(
         change_map[row:row + patch_size, col:col + patch_size] = patch_change_map
 
     write_img(change_map, os.path.join(save_dir, "change_map_continuous.tif"))
-
-    threshold = np.quantile(change_map, config.STAGE1_CHANGE_QUANTILE)
-    binary_change_map = (change_map >= threshold).astype(np.float32)
-    cv2.imwrite(
-        os.path.join(save_dir, "change_map_binary.png"),
-        binary_change_map * 255,
-    )
     print(f"[Stage1] Finished {event_name}")
 
 
