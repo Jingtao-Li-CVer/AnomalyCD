@@ -1,4 +1,4 @@
-# AnomalyCD
+# Unsupervised anomaly localization with high-resolution and time-series satellite imagery: from global disaster dataset to zero-shot model via SAM（ISPRS2026）
 
 AnomalyCD is a **two-stage anomaly change detection** framework for multi-temporal remote sensing imagery. It first performs bitemporal change detection with SAM (Segment Anything Model), then distinguishes **normal changes** from **anomalous changes** using historical normal observations.
 
